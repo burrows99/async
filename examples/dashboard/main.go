@@ -18,11 +18,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/burrows99/async/abort"
 	"github.com/burrows99/async/collections"
 	"github.com/burrows99/async/promise"
+	"github.com/burrows99/async/timers"
 )
 
 func main() {
@@ -41,7 +43,13 @@ func main() {
 
 	// ─── Phase 2 · collections ─────────────────────────────────────────────
 	sceneMap()
-	scenePool()
+	sceneQueue()
+
+	// ─── Phase 3 · utilities ───────────────────────────────────────────────
+	sceneAny()
+	sceneRetry()
+	sceneSetTimeout()
+	sceneDebounce()
 
 	fmt.Println("\nAll scenes complete — the process survived every failure above.")
 }
@@ -184,7 +192,7 @@ func sceneMap() {
 	fmt.Printf("  → %d users at concurrency 2 (in %s)\n", len(users), time.Since(start).Round(time.Millisecond))
 }
 
-func scenePool() {
+func sceneQueue() {
 	scene(10, "p-queue — a worker pool",
 		`const q = new PQueue({ concurrency: 2 }); jobs.forEach(j => q.add(j)); await q.onIdle();`)
 
@@ -208,6 +216,64 @@ func scenePool() {
 		sum += v
 	}
 	fmt.Printf("  → 5 jobs done at concurrency 2, sum of squares = %d\n", sum)
+}
+
+func sceneAny() {
+	scene(11, "Promise.any — first success wins",
+		`const p = await Promise.any([down(), mirrorB(), mirrorC()]);`)
+
+	// const p = await Promise.any([down(), mirrorB(), mirrorC()]);
+	payload, err := promise.Any(
+		promise.New(func() (string, error) { return "", errors.New("mirror-A is down") }),
+		getFromMirror("mirror-B", 30*time.Millisecond),
+		getFromMirror("mirror-C", 10*time.Millisecond),
+	)
+	if err != nil {
+		fmt.Println("  error:", err)
+		return
+	}
+	fmt.Printf("  → %q (first to succeed; A's failure ignored)\n", payload)
+}
+
+func sceneRetry() {
+	scene(12, "p-retry — retry with backoff",
+		`const r = await pRetry(flaky, { retries: 2 });`)
+
+	attempt := 0
+	// const r = await pRetry(flaky, { retries: 2 });
+	r, err := promise.Await(promise.Retry(func() (string, error) {
+		attempt++
+		if attempt < 3 {
+			return "", fmt.Errorf("attempt %d failed", attempt)
+		}
+		return "succeeded", nil
+	}, promise.Attempts(3), promise.ExpBackoff(10*time.Millisecond)))
+	fmt.Printf("  → %q after %d attempts (err: %v)\n", r, attempt, err)
+}
+
+func sceneSetTimeout() {
+	scene(13, "setTimeout(fn, ms)",
+		`setTimeout(() => log("fired"), 20);`)
+
+	var fired atomic.Bool
+	// setTimeout(() => { fired = true }, 20);
+	timers.SetTimeout(func() { fired.Store(true) }, 20*time.Millisecond)
+	time.Sleep(40 * time.Millisecond) // JS: the event loop would run it
+	fmt.Printf("  → timer fired: %t\n", fired.Load())
+}
+
+func sceneDebounce() {
+	scene(14, "debounce(fn, ms)",
+		`const save = debounce(persist, 20); save(); save(); save();`)
+
+	var runs atomic.Int64
+	// const save = debounce(persist, 20);
+	save, _ := timers.Debounce(func() { runs.Add(1) }, 20*time.Millisecond)
+	save()
+	save()
+	save() // three rapid calls collapse into one
+	time.Sleep(40 * time.Millisecond)
+	fmt.Printf("  → persist ran %d time(s) after 3 rapid calls\n", runs.Load())
 }
 
 // scene prints a numbered header and the JavaScript the section mirrors.

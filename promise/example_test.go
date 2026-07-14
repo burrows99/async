@@ -61,6 +61,36 @@ func ExamplePanicError() {
 	// Output: recovered: something broke
 }
 
+// The JavaScript this mirrors:
+//
+//	const first = await Promise.any([mightFail(), willSucceed()]);
+func ExampleAny() {
+	first, err := promise.Any(
+		promise.New(func() (int, error) { return 0, errors.New("nope") }),
+		promise.New(func() (int, error) { return 42, nil }),
+	)
+	fmt.Println(first, err)
+	// Output: 42 <nil>
+}
+
+// The JavaScript this mirrors:
+//
+//	const result = await pRetry(flaky, { retries: 2 });
+func ExampleRetry() {
+	calls := 0
+	p := promise.Retry(func() (string, error) {
+		calls++
+		if calls < 2 {
+			return "", errors.New("transient")
+		}
+		return "ok", nil
+	}, promise.Attempts(3))
+
+	result, err := promise.Await(p)
+	fmt.Println(result, err)
+	// Output: ok <nil>
+}
+
 // Timeout races work against a deadline, like AbortSignal.timeout(ms).
 func ExampleTimeout() {
 	slow := promise.WithSignal(func(signal *abort.Signal) (int, error) {

@@ -37,9 +37,10 @@ they provide:
 
 | Package | Mirrors | Provides |
 |---------|---------|----------|
-| [`promise`](promise) | `Promise` | `New`, `WithSignal`, `Await`, `All`, `All2`–`All8`, `Race`, `AllSettled`, `Timeout` |
+| [`promise`](promise) | `Promise` | `New`, `WithSignal`, `Await`, `All`, `All2`–`All8`, `Race`, `AllSettled`, `Any` + `AggregateError`, `Retry`, `Timeout` |
 | [`abort`](abort) | `AbortController` / `AbortSignal` | `NewController`, `Controller`, `Signal` |
 | [`collections`](collections) | `p-map` / `p-queue` | `Map`, `ForEach`, `Concurrency`, `Queue` |
+| [`timers`](timers) | `setTimeout` / lodash | `SetTimeout`, `SetInterval`, `Debounce`, `Throttle` |
 
 ```go
 import (
@@ -148,9 +149,10 @@ if errors.As(err, &pe) {
   ✅ implemented
 - **Collections (v0.2):** `collections` — `Map`, `ForEach`, `Concurrency`,
   `Queue` (bounded concurrency over a slice, à la p-map / p-queue). ✅ implemented
-- **Utilities:** `Retry`, `timers.SetTimeout`/`SetInterval`, `Debounce`,
-  `Throttle`, `Any` + `AggregateError`, plus a "coming from JavaScript"
-  migration guide.
+- **Utilities (v0.3):** `promise.Any` + `AggregateError`, `promise.Retry`, and
+  `timers` — `SetTimeout`, `SetInterval`, `Debounce`, `Throttle`. ✅ implemented
+- **Docs:** a "coming from JavaScript" migration guide — every pattern above,
+  side by side with raw Go. _(next)_
 
 ## Contributing
 
