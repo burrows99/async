@@ -18,20 +18,22 @@ jobs:
       matrix:
         go: ['1.23', '1.24', '1.25', '1.26']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
+          cache: false # zero dependencies — nothing to cache, avoids a go.sum warning
       - run: go vet ./...
       - run: go test -race ./...
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache: false
 
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { echo "These files need gofmt:"; gofmt -l .; exit 1; }
@@ -49,9 +51,10 @@ jobs:
   govulncheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache: false
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
