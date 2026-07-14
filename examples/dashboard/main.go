@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/burrows99/async/abort"
+	"github.com/burrows99/async/collections"
 	"github.com/burrows99/async/promise"
 )
 
@@ -37,6 +38,10 @@ func main() {
 	scenePanicSafety()
 	sceneTimeout()
 	sceneAbort()
+
+	// ─── Phase 2 · collections ─────────────────────────────────────────────
+	sceneMap()
+	scenePool()
 
 	fmt.Println("\nAll scenes complete — the process survived every failure above.")
 }
@@ -113,7 +118,7 @@ func sceneAllSettled() {
 		if r.OK() {
 			fmt.Printf("  → %s: %d in stock\n", skus[i], r.Value)
 		} else {
-			fmt.Printf("  → %s: failed (%v)\n", skus[i], r.Err)
+			fmt.Printf("  → %s: failed (%v)\n", skus[i], r.Reason)
 		}
 	}
 }
@@ -160,6 +165,49 @@ func sceneAbort() {
 	c.Abort() // c.abort();
 	_, err := promise.Await(report)
 	fmt.Printf("  → aborted early: %v\n", err)
+}
+
+func sceneMap() {
+	scene(9, "pMap — bounded concurrency over a list",
+		`const users = await pMap([1..6], getUser, { concurrency: 2 });`)
+
+	ids := []int{1, 2, 3, 4, 5, 6}
+
+	start := time.Now()
+	// const users = await pMap(ids, getUser, { concurrency: 2 });
+	users, err := collections.Map(ids, getUser, collections.Concurrency(2))
+	if err != nil {
+		fmt.Println("  error:", err)
+		return
+	}
+	// 6 users at concurrency 2 → three waves; visibly slower than all-at-once.
+	fmt.Printf("  → %d users at concurrency 2 (in %s)\n", len(users), time.Since(start).Round(time.Millisecond))
+}
+
+func scenePool() {
+	scene(10, "p-queue — a worker pool",
+		`const q = new PQueue({ concurrency: 2 }); jobs.forEach(j => q.add(j)); await q.onIdle();`)
+
+	// const q = new PQueue({ concurrency: 2 });
+	queue := collections.NewQueue[int](2)
+
+	// jobs.forEach(j => q.add(() => run(j)));
+	jobs := make([]*promise.Promise[int], 5)
+	for i := range jobs {
+		n := i + 1
+		jobs[i] = queue.Add(func() (int, error) {
+			time.Sleep(20 * time.Millisecond)
+			return n * n, nil
+		})
+	}
+	queue.OnIdle() // await q.onIdle();
+
+	sum := 0
+	for _, j := range jobs {
+		v, _ := promise.Await(j)
+		sum += v
+	}
+	fmt.Printf("  → 5 jobs done at concurrency 2, sum of squares = %d\n", sum)
 }
 
 // scene prints a numbered header and the JavaScript the section mirrors.

@@ -3,17 +3,17 @@ package promise
 import "sync"
 
 // Result is the outcome of a single Promise as reported by [AllSettled]:
-// exactly one of Value (on success) or Err (on failure) is meaningful. It
-// mirrors the { status, value | reason } records returned by JavaScript's
+// exactly one of Value (on success) or Reason (on failure) is meaningful. The
+// field names mirror the { value, reason } records returned by JavaScript's
 // Promise.allSettled.
 type Result[T any] struct {
-	Value T
-	Err   error
+	Value  T
+	Reason error
 }
 
-// OK reports whether the Promise settled successfully, that is, Err == nil.
+// OK reports whether the Promise settled successfully, that is, Reason == nil.
 func (r Result[T]) OK() bool {
-	return r.Err == nil
+	return r.Reason == nil
 }
 
 // All waits for every promise to settle and returns their values in input
@@ -57,7 +57,7 @@ func All[T any](ps ...*Promise[T]) ([]T, error) {
 // AllSettled waits for every promise to settle and returns one [Result] per
 // promise, in input order. It never returns early and never fails — the
 // analogue of JavaScript's Promise.allSettled. Each Result carries either a
-// Value (success) or an Err (failure, including a [*PanicError] for a panicked
+// Value (success) or a Reason (failure, including a [*PanicError] for a panicked
 // task).
 func AllSettled[T any](ps ...*Promise[T]) []Result[T] {
 	results := make([]Result[T], len(ps))
@@ -67,7 +67,7 @@ func AllSettled[T any](ps ...*Promise[T]) []Result[T] {
 		go func() {
 			defer wg.Done()
 			v, err := p.Await()
-			results[i] = Result[T]{Value: v, Err: err}
+			results[i] = Result[T]{Value: v, Reason: err}
 		}()
 	}
 	wg.Wait()

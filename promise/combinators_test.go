@@ -88,11 +88,11 @@ func TestAllSettledNeverFails(t *testing.T) {
 	if !res[0].OK() || res[0].Value != 10 {
 		t.Fatalf("res[0] = %+v, want ok with value 10", res[0])
 	}
-	if res[1].OK() || !errors.Is(res[1].Err, sentinel) {
+	if res[1].OK() || !errors.Is(res[1].Reason, sentinel) {
 		t.Fatalf("res[1] = %+v, want failure with sentinel", res[1])
 	}
 	var pe *promise.PanicError
-	if res[2].OK() || !errors.As(res[2].Err, &pe) {
+	if res[2].OK() || !errors.As(res[2].Reason, &pe) {
 		t.Fatalf("res[2] = %+v, want a *PanicError", res[2])
 	}
 }

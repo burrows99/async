@@ -39,6 +39,7 @@ they provide:
 |---------|---------|----------|
 | [`promise`](promise) | `Promise` | `New`, `WithSignal`, `Await`, `All`, `All2`–`All8`, `Race`, `AllSettled`, `Timeout` |
 | [`abort`](abort) | `AbortController` / `AbortSignal` | `NewController`, `Controller`, `Signal` |
+| [`collections`](collections) | `p-map` / `p-queue` | `Map`, `ForEach`, `Concurrency`, `Queue` |
 
 ```go
 import (
@@ -72,6 +73,9 @@ users, err := promise.All(getUser(1), getUser(2), getUser(3))
 
 // JS: const [user, orders] = await Promise.all([getUser(1), getOrders(1)]);
 user, orders, err := promise.All2(getUser(1), getOrders(1))
+
+// JS: const users = await pMap(ids, getUser, { concurrency: 10 });
+users, err := collections.Map(ids, getUser, collections.Concurrency(10))
 ```
 
 See [`examples/dashboard`](examples/dashboard) for a full, runnable showcase:
@@ -142,7 +146,8 @@ if errors.As(err, &pe) {
 - **Core (v0.1):** `promise` (New, WithSignal, Await, All/All2–All8, Race,
   AllSettled, Timeout, panic containment) + `abort` (Controller, Signal).
   ✅ implemented
-- **Collections:** `collections.Map`, `ForEach`, `WithLimit`, `Pool`.
+- **Collections (v0.2):** `collections` — `Map`, `ForEach`, `Concurrency`,
+  `Queue` (bounded concurrency over a slice, à la p-map / p-queue). ✅ implemented
 - **Utilities:** `Retry`, `timers.SetTimeout`/`SetInterval`, `Debounce`,
   `Throttle`, `Any` + `AggregateError`, plus a "coming from JavaScript"
   migration guide.
