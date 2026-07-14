@@ -1,5 +1,6 @@
 # async
 
+[![CI](https://github.com/burrows99/async/actions/workflows/ci.yml/badge.svg)](https://github.com/burrows99/async/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/burrows99/async.svg)](https://pkg.go.dev/github.com/burrows99/async)
 [![Go Report Card](https://goreportcard.com/badge/github.com/burrows99/async)](https://goreportcard.com/report/github.com/burrows99/async)
 
