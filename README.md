@@ -75,31 +75,152 @@ site reads like the JavaScript it mirrors:
 
 ```go
 import (
-	"github.com/burrows99/async/promise"
+	"github.com/burrows99/async/abort"
 	"github.com/burrows99/async/collections"
+	"github.com/burrows99/async/promise"
+	"github.com/burrows99/async/timers"
 )
 
-// This is our "async function". Calling it returns a Promise, just like
-// `async function getUser(id) { ... }` does in JS.
+// An "async function": calling getUser(1) returns a Promise, just like
+// `async function getUser(id) { ... }` does in JS. The rest of the examples
+// assume getOrders, getRecs, etc. follow the same pattern.
 func getUser(id int) *promise.Promise[User] {
 	return promise.New(func() (User, error) {
 		return db.FindUser(id)
 	})
 }
+```
 
-func example(ids []int) {
-	// JS: const user = await getUser(1);
-	user, err := promise.Await(getUser(1))
+### Create and await
 
-	// JS: const users = await Promise.all([getUser(1), getUser(2), getUser(3)]);
-	users, err := promise.All(getUser(1), getUser(2), getUser(3))
+```go
+// JS: const v = await doWork();
+v, err := promise.Await(getUser(1)) // or: v, err := getUser(1).Await()
 
-	// JS: const [user, orders] = await Promise.all([getUser(1), getOrders(1)]);
-	user, orders, err := promise.All2(getUser(1), getOrders(1))
+// JS: Promise.resolve(42) / Promise.reject(new Error("no"))
+ready := promise.Resolve(42)
+bad := promise.Reject[int](errors.New("no"))
+```
 
-	// JS: const users = await pMap(ids, getUser, { concurrency: 10 });
-	users, err = collections.Map(ids, getUser, collections.Concurrency(10))
+### Combine — all, race, allSettled, any
+
+```go
+// JS: const users = await Promise.all([getUser(1), getUser(2), getUser(3)]);
+users, err := promise.All(getUser(1), getUser(2), getUser(3)) // []User, fail-fast
+
+// JS: const [user, orders] = await Promise.all([getUser(1), getOrders(1)]);  // mixed types
+user, orders, err := promise.All2(getUser(1), getOrders(1))
+user, orders, recs, err := promise.All3(getUser(1), getOrders(1), getRecs())
+
+// JS: const first = await Promise.race([primary(), replica()]);
+winner, err := promise.Race(primary(), replica())
+
+// JS: const results = await Promise.allSettled([getUser(1), getUser(2)]);  // never fails
+for i, r := range promise.AllSettled(getUser(1), getUser(2)) {
+	if r.OK() {
+		fmt.Println(i, r.Value)
+	} else {
+		fmt.Println(i, "failed:", r.Reason)
+	}
 }
+
+// JS: const ok = await Promise.any([mirrorA(), mirrorB()]);  // first success wins
+value, err := promise.Any(mirrorA(), mirrorB())
+var agg *promise.AggregateError
+if errors.As(err, &agg) {
+	// every input rejected; agg.Errors holds each reason
+}
+```
+
+### Chain — then, finally
+
+```go
+// JS: getUser(1).then(u => u.Name)
+nameP := promise.Then(getUser(1), func(u User) (string, error) { return u.Name, nil })
+
+// JS: doWork().finally(() => cleanup())
+p := getUser(1).Finally(func() { cleanup() })
+```
+
+### Bound the work — timeout, retry
+
+```go
+// JS: await fetch(url, { signal: AbortSignal.timeout(200) });
+v, err := promise.Await(promise.Timeout(slowCall(), 200*time.Millisecond))
+if errors.Is(err, promise.ErrTimeout) {
+	// deadline hit
+}
+
+// JS: await pRetry(flaky, { retries: 2 });
+res, err := promise.Await(promise.Retry(flaky,
+	promise.Attempts(3), promise.ExpBackoff(100*time.Millisecond)))
+```
+
+### Cancel — signals and controllers
+
+```go
+// A cancellable "async function" — the Go analogue of async fn ({ signal }).
+func fetchThing(id int) *promise.Promise[Thing] {
+	return promise.WithSignal(func(sig *abort.Signal) (Thing, error) {
+		return client.Get(sig.Context(), id) // sig.Context() bridges to any ctx-aware API
+	})
+}
+
+// JS: const c = new AbortController(); fetchThing(c.signal); c.abort();
+p := fetchThing(1)
+p.Abort()           // AbortController.abort()
+_, err := p.Await() // abort.ErrAborted
+
+// A standalone controller can drive work you build yourself:
+c := abort.NewController()
+task := promise.New(func() (int, error) {
+	select {
+	case <-time.After(time.Second):
+		return 1, nil
+	case <-c.Signal().Done():
+		return 0, c.Signal().Reason()
+	}
+})
+c.Abort()
+```
+
+### Collections — bounded concurrency (p-map / p-queue)
+
+```go
+// JS: const users = await pMap(ids, getUser, { concurrency: 10 });
+users, err := collections.Map(ids, getUser, collections.Concurrency(10))
+
+// Side effects only, like Promise.all(items.map(fn)); fn returns a Promise.
+err = collections.ForEach(ids, sendWelcome, collections.Concurrency(5))
+
+// JS: const q = new PQueue({ concurrency: 4 });
+q := collections.NewQueue[Report](4)
+for _, id := range ids {
+	report := q.Add(func() (Report, error) { return build(id) }) // returns a Promise
+	_ = report
+}
+q.OnIdle() // await q.onIdle();
+```
+
+### Timers — setTimeout / setInterval / debounce / throttle
+
+```go
+// JS: const t = setTimeout(fire, 200); clearTimeout(t);
+t := timers.SetTimeout(fire, 200*time.Millisecond)
+timers.ClearTimeout(t)
+
+// JS: const iv = setInterval(tick, 1000); clearInterval(iv);
+iv := timers.SetInterval(tick, time.Second)
+timers.ClearInterval(iv)
+
+// JS: const save = _.debounce(persist, 300); save(); save();  // runs once
+save, _ := timers.Debounce(persist, 300*time.Millisecond)
+save()
+save()
+
+// JS: const onScroll = _.throttle(handle, 100);
+onScroll, _ := timers.Throttle(handle, 100*time.Millisecond)
+onScroll()
 ```
 
 For a full, runnable showcase of every pattern — written to read like JavaScript
