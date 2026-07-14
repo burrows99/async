@@ -30,11 +30,9 @@ func Attempts(n int) RetryOption {
 func ExpBackoff(base time.Duration) RetryOption {
 	return func(c *retryConfig) {
 		c.backoff = func(attempt int) time.Duration {
-			shift := attempt - 1
-			if shift > 30 { // guard against overflow on absurd attempt counts
-				shift = 30
-			}
-			return base << uint(shift)
+			// cap the shift to guard against overflow on absurd attempt counts
+			shift := min(attempt-1, 30)
+			return base << shift
 		}
 	}
 }

@@ -1,0 +1,10 @@
+version: "2"
+
+# The standard linter set (errcheck, govet, ineffassign, staticcheck, unused)
+# plus a couple of low-noise extras. Pinned explicitly so CI does not drift when
+# golangci-lint changes its defaults.
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - unconvert
