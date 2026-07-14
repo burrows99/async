@@ -1,5 +1,3 @@
-# async
-
 ![async — JavaScript-style concurrency for Go](docs/banner.png)
 
 [![CI](https://github.com/burrows99/async/actions/workflows/ci.yml/badge.svg)](https://github.com/burrows99/async/actions/workflows/ci.yml)
