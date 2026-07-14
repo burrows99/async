@@ -91,6 +91,31 @@ func ExampleRetry() {
 	// Output: ok <nil>
 }
 
+// The JavaScript this mirrors:
+//
+//	const label = await Promise.resolve(21).then(n => n * 2).then(n => `n=${n}`);
+func ExampleThen() {
+	doubled := promise.Then(promise.Resolve(21), func(n int) (int, error) {
+		return n * 2, nil
+	})
+	labelled := promise.Then(doubled, func(n int) (string, error) {
+		return fmt.Sprintf("n=%d", n), nil
+	})
+
+	label, err := promise.Await(labelled)
+	fmt.Println(label, err)
+	// Output: n=42 <nil>
+}
+
+// The JavaScript this mirrors:
+//
+//	const v = await Promise.resolve("ready");
+func ExampleResolve() {
+	v, err := promise.Resolve("ready").Await()
+	fmt.Println(v, err)
+	// Output: ready <nil>
+}
+
 // Timeout races work against a deadline, like AbortSignal.timeout(ms).
 func ExampleTimeout() {
 	slow := promise.WithSignal(func(signal *abort.Signal) (int, error) {

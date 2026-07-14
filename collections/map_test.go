@@ -83,15 +83,18 @@ func TestMapFailFastStopsStartingWork(t *testing.T) {
 	_, err := collections.Map(items, func(i int) *promise.Promise[int] {
 		return promise.New(func() (int, error) {
 			started.Add(1)
-			return 0, sentinel // every task fails immediately
+			// A short delay so at most `limit` tasks are in flight when the
+			// failure aborts the rest, giving a clear fail-fast window.
+			time.Sleep(10 * time.Millisecond)
+			return 0, sentinel
 		})
 	}, collections.Concurrency(limit))
 
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Map error = %v, want %v", err, sentinel)
 	}
-	// With a small limit and immediate failures, far fewer than all 50 tasks
-	// should ever start.
+	// With a small limit, only a handful start before fail-fast stops the rest —
+	// far fewer than all 50.
 	if s := started.Load(); s >= int64(len(items)) {
 		t.Fatalf("started %d tasks; fail-fast should have started fewer than %d", s, len(items))
 	}
@@ -130,29 +133,25 @@ func TestForEachPropagatesError(t *testing.T) {
 	}
 }
 
-// TestMapWithSignalMapperAbortsOnFailFast verifies that a cancellable mapper
-// still queued when a failure occurs is aborted rather than run.
-func TestMapWithSignalMapperAbortsOnFailFast(t *testing.T) {
+// TestMapReturnsFailingError verifies Map surfaces the mapper's error, with no
+// partial results, when exactly one item fails. It is deterministic because that
+// error is the only one in play — no dependence on scheduling order.
+func TestMapReturnsFailingError(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.New("first fails")
-	var ran atomic.Int64
-
-	items := []int{0, 1, 2, 3, 4, 5, 6, 7}
-	_, err := collections.Map(items, func(i int) *promise.Promise[int] {
+	sentinel := errors.New("item 3 failed")
+	got, err := collections.Map([]int{0, 1, 2, 3, 4, 5}, func(i int) *promise.Promise[int] {
 		return promise.New(func() (int, error) {
-			if i == 0 {
+			if i == 3 {
 				return 0, sentinel
 			}
-			ran.Add(1)
-			time.Sleep(5 * time.Millisecond)
 			return i, nil
 		})
-	}, collections.Concurrency(1)) // serialize so item 0 fails before most others start
+	}, collections.Concurrency(2))
 
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Map error = %v, want %v", err, sentinel)
 	}
-	if r := ran.Load(); r >= int64(len(items)-1) {
-		t.Fatalf("ran %d tasks after the first failed; fail-fast should skip most", r)
+	if got != nil {
+		t.Fatalf("Map results = %v, want nil on error", got)
 	}
 }

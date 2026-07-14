@@ -50,6 +50,7 @@ func main() {
 	sceneRetry()
 	sceneSetTimeout()
 	sceneDebounce()
+	sceneThen()
 
 	fmt.Println("\nAll scenes complete — the process survived every failure above.")
 }
@@ -274,6 +275,19 @@ func sceneDebounce() {
 	save() // three rapid calls collapse into one
 	time.Sleep(40 * time.Millisecond)
 	fmt.Printf("  → persist ran %d time(s) after 3 rapid calls\n", runs.Load())
+}
+
+func sceneThen() {
+	scene(15, "chaining — .then / .finally",
+		`await getUser(1).then(u => u.Name).finally(() => log("done"));`)
+
+	// getUser(1).then(u => u.Name)   — cross-type transform (User -> string)
+	nameP := promise.Then(getUser(1), func(u User) (string, error) {
+		return u.Name, nil
+	})
+	// .finally(() => ...)
+	name, err := promise.Await(nameP.Finally(func() { /* cleanup runs whatever happens */ }))
+	fmt.Printf("  → %q (err: %v)\n", name, err)
 }
 
 // scene prints a numbered header and the JavaScript the section mirrors.

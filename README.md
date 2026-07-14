@@ -28,6 +28,7 @@ rather than competes. It has zero dependencies beyond the standard library.
 - [Install](#install)
 - [Usage](#usage)
 - [Packages](#packages)
+- [Scope](#scope)
 - [Cancellation and errors](#cancellation-and-errors)
 - [Roadmap](#roadmap)
 - [API](#api)
@@ -50,6 +51,10 @@ and cancellation modelled on `AbortController`/`AbortSignal`. The public API use
 the JavaScript and npm vocabulary throughout (`Promise.all`, `p-map`'s
 `{ concurrency }`, `p-queue`'s `add`/`onIdle`, lodash `debounce`/`throttle`), so
 the surface is familiar while the semantics stay Go-shaped.
+
+New to Go from JavaScript? Start with **[Coming from JavaScript](docs/coming-from-javascript.md)** —
+side-by-side JS, raw Go, and `async`, plus the mental-model differences that will
+bite you if you assume Go is just JavaScript with types.
 
 ## Install
 
@@ -109,10 +114,38 @@ it provides:
 
 | Package | Mirrors | Provides |
 |---------|---------|----------|
-| [`promise`](promise) | `Promise` | `New`, `WithSignal`, `Await`, `All`, `All2`–`All8`, `Race`, `AllSettled`, `Any` + `AggregateError`, `Retry`, `Timeout` |
+| [`promise`](promise) | `Promise` | `New`, `Resolve`, `Reject`, `WithSignal`, `Await`, `Then`, `Finally`, `All`, `All2`–`All8`, `Race`, `AllSettled`, `Any` + `AggregateError`, `Retry`, `Timeout` |
 | [`abort`](abort) | `AbortController` / `AbortSignal` | `NewController`, `Controller`, `Signal` |
 | [`collections`](collections) | `p-map` / `p-queue` | `Map`, `ForEach`, `Concurrency`, `Queue` |
 | [`timers`](timers) | `setTimeout` / lodash | `SetTimeout`, `SetInterval`, `Debounce`, `Throttle` |
+
+## Scope
+
+`async` is deliberately a *slice* of concurrency, not the whole thing. It does one
+job well — **fan out a known set of tasks, then gather the results**, with
+optional concurrency limits, retries, timeouts, and cancellation (`All`, `Any`,
+`Race`, `Map`, `Queue`, `Retry`). For that shape it's a real
+errgroup/semaphore boilerplate-killer, and it names that job honestly rather than
+claiming to be a full toolkit.
+
+Reach for raw goroutines, channels, `select`, and `sync` when you need:
+
+- **Shared-state synchronization** — `Mutex`, `atomic`, `Once`, `sync.Map`. A
+  promise library doesn't replace a mutex, and real code needs them constantly.
+- **Streaming, pipelines, and fan-in** — producer→consumer, or results consumed
+  as they arrive. `Map` returns everything at once, in order — it doesn't stream.
+- **General `select`** — waiting on many dynamic events, non-blocking checks, or
+  ticker-driven coordination.
+- **Deep `context.Context` propagation** — `async` hides context by design
+  (which is what makes it approachable), so a service that threads request
+  context end-to-end for deadlines and tracing should use `context` directly.
+  `signal.Context()` bridges at a boundary, but it is not full propagation.
+
+Everything here returns and accepts only standard types, so you can mix the two
+freely: use `async` for the fan-out/gather 90%, and drop to channels the moment
+the shape changes. Coming from JavaScript? The
+[migration guide](docs/coming-from-javascript.md) spells out exactly where the
+ramp ends.
 
 ## Cancellation and errors
 
@@ -164,8 +197,9 @@ if errors.As(err, &pe) {
   `Queue` (bounded concurrency over a slice, à la p-map / p-queue). ✅ implemented
 - **Utilities (v0.3):** `promise.Any` + `AggregateError`, `promise.Retry`, and
   `timers` — `SetTimeout`, `SetInterval`, `Debounce`, `Throttle`. ✅ implemented
-- **Docs:** a "coming from JavaScript" migration guide — every pattern above,
-  side by side with raw Go. _(next)_
+- **Docs:** [Coming from JavaScript](docs/coming-from-javascript.md) — every
+  pattern side by side with raw Go, plus the mental-model differences.
+  ✅ implemented
 
 ## API
 
